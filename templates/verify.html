@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Audit Hub</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        :root { --bg-color: #f4f7f9; --card-bg: #ffffff; --text-main: #1e293b; --primary: #0d6efd; }
+        body { background-color: var(--bg-color); color: var(--text-main); font-family: -apple-system, sans-serif; }
+        .header { background: var(--card-bg); padding: 1rem 2rem; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
+        .header h1 { font-size: 1.5rem; font-weight: 700; margin: 0; }
+        .card { background: var(--card-bg); border: 1px solid #e2e8f0; border-radius: 0.75rem; box-shadow: 0 1px 2px rgba(0,0,0,0.05); margin-bottom: 1.5rem; }
+        .card-header { background: #f8fafc; padding: 1rem 1.5rem; border-bottom: 1px solid #e2e8f0; font-weight: 600; }
+        .card-body { padding: 1.5rem; }
+        
+        .kpi-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem; }
+        .kpi-card { background: #f8fafc; padding: 1rem; border-radius: 0.5rem; border-left: 4px solid var(--primary); text-align: center; }
+        .kpi-card h5 { font-size: 0.8rem; color: #64748b; text-transform: uppercase; margin: 0; font-weight: 700; }
+        .kpi-card .val { font-size: 2rem; font-weight: 900; color: #1e293b; }
+
+        #scan-input { font-size: 1.5rem; text-align: center; font-weight: bold; }
+        .status-badge { padding: 5px 12px; border-radius: 20px; font-size: 0.85rem; font-weight: 800; display: inline-block; }
+        .status-pending { background: #f1f5f9; color: #64748b; border: 1px solid #cbd5e1; }
+        .status-verified { background: #166534; color: #ffffff; box-shadow: 0 2px 4px rgba(22, 101, 52, 0.3); }
+        .status-unexpected { background: #ef4444; color: #ffffff; }
+
+        .verified-row { background-color: #f0fdf4 !important; opacity: 0.8; }
+        .unexpected-row { background-color: #fee2e2 !important; border-left: 4px solid #ef4444; }
+
+        @media print {
+            body * { visibility: hidden; }
+            #print-voucher-area, #print-voucher-area * { visibility: visible; }
+            #print-voucher-area { position: absolute; left: 0; top: 0; width: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header no-print">
+        <h1>📋 Stock Audit & Verification</h1>
+        <div style="display:flex; gap:10px;">
+            <button id="esp-toggle-btn" class="btn btn-outline-primary fw-bold">📡 ESP Mode: OFF</button>
+            <a href="/admin" class="btn btn-outline-secondary">← Back to Dashboard</a>
+        </div>
+    </div>
+
+    <div class="container-fluid no-print" style="max-width: 1600px;">
+        <div class="row">
+            <div class="col-lg-8">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span style="font-size: 1.2rem;">📦 Physical Audit Checklist</span>
+                        <div>
+                            <button id="clear-btn" class="btn btn-sm btn-outline-secondary me-2" style="display: none;">Reset Audit</button>
+                            <button id="finalize-audit-btn" class="btn btn-sm btn-success fw-bold" style="display: none;">📊 Finalize & Generate Voucher</button>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive" style="height: 70vh; overflow-y: auto;">
+                            <table class="table table-hover mb-0" id="audit-table">
+                                <thead class="table-light" style="position: sticky; top: 0; z-index: 1;">
+                                    <tr>
+                                        <th class="ps-4">Pipe ID</th>
+                                        <th>Brand & Name</th>
+                                        <th>Size</th>
+                                        <th>Color</th>
+                                        <th>Audit Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="audit-table-body">
+                                    <tr><td colspan="5" class="text-center py-5 text-muted fw-bold">Please select filters and click "Fetch Expected Stock" to begin.</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-4">
+                <div class="card" id="setup-card">
+                    <div class="card-header bg-light">1. Target Stock</div>
+                    <div class="card-body">
+                        <div class="row g-2 mb-3">
+                            <div class="col-6"><input type="text" id="f_name" class="form-control" placeholder="Brand"></div>
+                            <div class="col-6"><input type="text" id="f_size" class="form-control" placeholder="Size"></div>
+                            <div class="col-6"><input type="text" id="f_color" class="form-control" placeholder="Color"></div>
+                            <div class="col-6"><input type="text" id="f_pressure" class="form-control" placeholder="Pressure"></div>
+                        </div>
+                        <button id="fetch-btn" class="btn btn-primary w-100 fw-bold btn-lg">📥 Fetch Expected Stock</button>
+                    </div>
+                </div>
+
+                <div class="card" id="scanner-card" style="opacity: 0.5; pointer-events: none;">
+                    <div class="card-header bg-light">2. Scan Physical Pipes</div>
+                    <div class="card-body">
+                        <div class="kpi-row">
+                            <div class="kpi-card">
+                                <h5>Expected</h5>
+                                <div class="val text-primary" id="count-total">0</div>
+                            </div>
+                            <div class="kpi-card" style="border-color: #16a34a;">
+                                <h5>Verified</h5>
+                                <div class="val text-success" id="count-verified">0</div>
+                            </div>
+                        </div>
+                        <input type="text" id="scan-input" class="form-control form-control-lg" placeholder="Scan barcode here..." disabled>
+                        <div id="scan-status" class="form-text text-center mt-2 fw-bold" style="min-height: 24px;"></div>
+                    </div>
+                </div>
+
+                <div class="card" id="logbook-card">
+                    <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                        <span>3. Audit Log</span>
+                        <button id="clear-log-btn" class="btn btn-sm btn-outline-secondary">Clear</button>
+                    </div>
+                    <div class="card-body p-0">
+                        <div id="logbook-empty" class="text-center py-4 text-muted small">No scans yet.</div>
+                        <ul id="scan-log-list" class="list-group list-group-flush" style="max-height: 250px; overflow-y:auto;"></ul>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="discrepancyModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content" id="print-voucher-area">
+                <div class="modal-header bg-light">
+                    <h5 class="modal-title fw-bold">📑 Physical Stock Discrepancy Voucher</h5>
+                    <button type="button" class="btn-close no-print" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row mb-4 text-center">
+                        <div class="col-4">
+                            <div class="p-3 bg-light rounded border">
+                                <div class="small text-muted fw-bold">DIGITAL EXPECTED</div>
+                                <h3 class="text-primary mb-0 fw-bold" id="v-expected">0</h3>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="p-3 bg-light rounded border">
+                                <div class="small text-muted fw-bold">PHYSICALLY SCANNED</div>
+                                <h3 class="text-success mb-0 fw-bold" id="v-scanned">0</h3>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="p-3 bg-red-50 rounded border" style="background: #fee2e2;">
+                                <div class="small text-danger fw-bold">MISSING PIPES</div>
+                                <h3 class="text-danger mb-0 fw-bold" id="v-missing">0</h3>
+                            </div>
+                        </div>
+                    </div>
+
+                    <h5 class="fw-bold text-danger border-bottom pb-2">⚠️ Missing Pipe IDs (Not Scanned)</h5>
+                    <div class="table-responsive" style="max-height: 300px;">
+                        <table class="table table-sm table-bordered">
+                            <thead class="table-light"><tr><th>ID</th><th>Brand</th><th>Size</th><th>Color</th></tr></thead>
+                            <tbody id="v-missing-table"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer no-print">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Keep Scanning</button>
+                    <button type="button" class="btn btn-primary fw-bold" onclick="window.print()">🖨️ Print Voucher</button>
+                    <button type="button" class="btn btn-danger fw-bold" onclick="saveVoucher()">💾 Save & Close Audit</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='js/verify.js') }}?v=3"></script>
+</body>
+</html>

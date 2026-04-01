@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Dispatch">
+    <meta name="theme-color" content="#0a0a0a">
+    <title>Dispatch Hub</title>
+
+    <script>
+        const _m={name:"Dispatch Hub Mobile",short_name:"Dispatch",start_url:"/dispatch_mobile",display:"standalone",background_color:"#0a0a0a",theme_color:"#0a0a0a",icons:[{src:"data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230a0a0a'/><text y='.9em' font-size='80' x='10'>🚚</text></svg>",sizes:"192x192",type:"image/svg+xml"}]};
+        const _b=new Blob([JSON.stringify(_m)],{type:'application/json'});
+        document.write(`<link rel="manifest" href="${URL.createObjectURL(_b)}">`);
+    </script>
+
+    <!-- jsQR — tiny, works perfectly on iOS Safari -->
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root{
+            --bg:#0a0a0a;--bg2:#111;--bg3:#1a1a1a;--bg4:#222;
+            --border:#2a2a2a;--border2:#333;
+            --text:#f0f0f0;--dim:#666;--muted:#3a3a3a;
+            --green:#00e676;--red:#ff1744;--amber:#ffab00;
+            --mono:'IBM Plex Mono',monospace;--sans:'IBM Plex Sans',sans-serif;
+        }
+        *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+        html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--sans);overscroll-behavior:none;}
+        .screen{display:none;flex-direction:column;height:100dvh;overflow:hidden;}
+        .screen.active{display:flex;}
+
+        /* ── SETUP ── */
+        #sc-setup{padding:max(2.5rem,env(safe-area-inset-top)) 1.5rem 2rem;justify-content:center;gap:1.8rem;}
+        .logo{text-align:center;}
+        .logo .li{font-size:2.8rem;display:block;margin-bottom:.4rem;}
+        .logo h1{font-family:var(--mono);font-size:1rem;font-weight:700;letter-spacing:.18em;color:var(--dim);text-transform:uppercase;}
+        .fields{display:flex;flex-direction:column;gap:.9rem;}
+        .fg label{display:block;font-family:var(--mono);font-size:.65rem;font-weight:600;letter-spacing:.12em;color:var(--dim);text-transform:uppercase;margin-bottom:.4rem;}
+        .irow{display:flex;gap:.5rem;align-items:center;}
+        .irow input{flex:1;min-width:0;}
+        .fg input{width:100%;background:var(--bg3);border:1.5px solid var(--border);border-radius:10px;padding:.85rem 1rem;color:var(--text);font-family:var(--mono);font-size:1rem;font-weight:600;letter-spacing:.04em;outline:none;transition:border-color .15s,box-shadow .15s;}
+        .fg input:focus{border-color:var(--green);}
+        .fg input::placeholder{color:var(--muted);font-weight:400;font-size:.85rem;}
+        .fg input.err{border-color:var(--red);}
+        .fg input.ok-flash{border-color:var(--green);box-shadow:0 0 0 3px rgba(0,230,118,.15);}
+        .btn-cam-sm{background:var(--bg3);border:1.5px solid var(--border2);border-radius:10px;width:46px;height:46px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:1.3rem;cursor:pointer;}
+        .btn-cam-sm:active{border-color:var(--green);}
+        .btn-start{background:var(--green);color:#000;border:none;border-radius:12px;padding:1rem;font-family:var(--mono);font-size:1rem;font-weight:700;letter-spacing:.08em;cursor:pointer;text-transform:uppercase;width:100%;}
+        .btn-start:active{opacity:.85;}
+
+        /* ── TOPBAR ── */
+        .topbar{display:flex;align-items:center;justify-content:space-between;padding:max(1rem,env(safe-area-inset-top)) 1.2rem 1rem;border-bottom:1px solid var(--border);background:var(--bg2);flex-shrink:0;}
+        .tbl{display:flex;flex-direction:column;gap:2px;}
+        .tbl-l{font-family:var(--mono);font-size:.62rem;font-weight:600;letter-spacing:.12em;color:var(--dim);text-transform:uppercase;}
+        .tbl-v{font-family:var(--mono);font-size:.9rem;font-weight:700;}
+        .tb-acts{display:flex;gap:.5rem;align-items:center;}
+        .btn-cam-top{background:var(--bg3);border:1.5px solid var(--border2);border-radius:8px;width:38px;height:38px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;cursor:pointer;transition:all .15s;}
+        .btn-cam-top.on{border-color:var(--green);background:#00e67612;}
+        .btn-end{background:transparent;border:1px solid var(--red);color:var(--red);border-radius:8px;padding:.42rem .8rem;font-family:var(--mono);font-size:.68rem;font-weight:600;letter-spacing:.06em;cursor:pointer;text-transform:uppercase;}
+
+        /* ── COUNTERS ── */
+        .counters{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid var(--border);flex-shrink:0;}
+        .cc{padding:.8rem 1.2rem;border-right:1px solid var(--border);}
+        .cc:last-child{border-right:none;}
+        .cc .cl{font-family:var(--mono);font-size:.6rem;letter-spacing:.1em;color:var(--dim);text-transform:uppercase;margin-bottom:2px;}
+        .cc .cv{font-family:var(--mono);font-size:1.7rem;font-weight:700;line-height:1;}
+        .cv.g{color:var(--green);}
+
+        /* ── CAMERA PANEL (inline, scan screen) ── */
+        .cam-panel{display:none;position:relative;background:#000;border-bottom:1px solid var(--border);flex-shrink:0;}
+        .cam-panel.on{display:block;}
+        .cam-panel video{width:100%;max-height:38vh;display:block;object-fit:cover;}
+        /* VF overlay */
+        .vf{position:absolute;inset:0;pointer-events:none;display:flex;align-items:center;justify-content:center;}
+        .vf-box{width:200px;height:140px;position:relative;}
+        .vc{position:absolute;width:20px;height:20px;border-color:var(--green);border-style:solid;}
+        .vc.tl{top:0;left:0;border-width:3px 0 0 3px;border-radius:4px 0 0 0;}
+        .vc.tr{top:0;right:0;border-width:3px 3px 0 0;border-radius:0 4px 0 0;}
+        .vc.bl{bottom:0;left:0;border-width:0 0 3px 3px;border-radius:0 0 0 4px;}
+        .vc.br{bottom:0;right:0;border-width:0 3px 3px 0;border-radius:0 0 4px 0;}
+        .vl{position:absolute;left:4px;right:4px;height:2px;background:linear-gradient(90deg,transparent,var(--green),transparent);animation:sl 2s ease-in-out infinite;top:0;}
+        @keyframes sl{0%{top:4px;opacity:1}90%{top:calc(100% - 4px);opacity:1}100%{top:4px;opacity:0}}
+        .vf-hint{position:absolute;bottom:-22px;left:50%;transform:translateX(-50%);font-family:var(--mono);font-size:.62rem;color:rgba(0,230,118,.7);letter-spacing:.08em;white-space:nowrap;}
+        .btn-x{position:absolute;top:.6rem;right:.6rem;z-index:10;background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.15);border-radius:50%;width:34px;height:34px;font-size:.85rem;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+        /* Scan flash on camera panel */
+        .cam-flash{position:absolute;inset:0;background:rgba(0,230,118,.3);pointer-events:none;opacity:0;}
+        .cam-flash.go{animation:cf .3s ease-out forwards;}
+        @keyframes cf{0%{opacity:1}100%{opacity:0}}
+
+        /* ── SCAN ZONE ── */
+        .scan-zone{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:1.2rem 1.5rem;position:relative;overflow:hidden;min-height:0;}
+        #usb-in{position:absolute;opacity:0;pointer-events:none;width:1px;height:1px;}
+        .flash-ovl{position:absolute;inset:0;background:rgba(0,230,118,.08);pointer-events:none;opacity:0;}
+        .flash-ovl.go{animation:fo .35s ease-out forwards;}
+        @keyframes fo{0%{opacity:1}100%{opacity:0}}
+
+        /* Result card */
+        .rc{width:100%;max-width:420px;background:var(--bg3);border-radius:14px;border:1.5px solid var(--border);overflow:hidden;transition:border-color .2s;}
+        .rc.ok{border-color:var(--green);}
+        .rc.warn{border-color:var(--amber);}
+        .rc.err{border-color:var(--red);}
+        .rsb{padding:.55rem 1rem;display:flex;align-items:center;gap:.5rem;font-family:var(--mono);font-size:.68rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;}
+        .rc.idle .rsb{background:var(--bg2);color:var(--dim);}
+        .rc.ok   .rsb{background:#00e67614;color:var(--green);}
+        .rc.warn .rsb{background:#ffab0014;color:var(--amber);}
+        .rc.err  .rsb{background:#ff174414;color:var(--red);}
+        .sd{width:7px;height:7px;border-radius:50%;background:currentColor;flex-shrink:0;}
+        .rc.ok .sd{animation:pu 1s ease-out;}
+        @keyframes pu{0%{box-shadow:0 0 0 0 rgba(0,230,118,.7)}70%{box-shadow:0 0 0 8px transparent}100%{box-shadow:none}}
+        .rb{padding:1rem 1.1rem;}
+        .ih{text-align:center;padding:1.2rem 0;}
+        .ih .hico{font-size:2rem;opacity:.2;display:block;margin-bottom:.5rem;}
+        .ih p{font-family:var(--mono);font-size:.72rem;color:var(--muted);}
+        .pn{font-family:var(--sans);font-size:1.35rem;font-weight:700;margin-bottom:.2rem;}
+        .pm{font-family:var(--mono);font-size:.75rem;color:var(--dim);letter-spacing:.03em;margin-bottom:.9rem;}
+        .pg{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.6rem;}
+        .pc{background:var(--bg2);border-radius:7px;padding:.5rem .65rem;}
+        .pc .pl{font-family:var(--mono);font-size:.58rem;letter-spacing:.1em;color:var(--dim);text-transform:uppercase;margin-bottom:2px;}
+        .pc .pv{font-family:var(--mono);font-size:.85rem;font-weight:600;}
+        .mb{text-align:center;padding:1.2rem 0;}
+        .mb .mi{font-size:1.8rem;display:block;margin-bottom:.4rem;}
+        .mb p{font-family:var(--mono);font-size:.82rem;font-weight:600;}
+        .rc.warn .mb p{color:var(--amber);}
+        .rc.err  .mb p{color:var(--red);}
+        .sh{margin-top:.8rem;font-family:var(--mono);font-size:.65rem;color:var(--muted);text-align:center;}
+        @keyframes shk{0%,100%{transform:translateX(0)}20%{transform:translateX(-5px)}40%{transform:translateX(5px)}60%{transform:translateX(-3px)}80%{transform:translateX(3px)}}
+        .shk{animation:shk .28s ease;}
+
+        /* ── RECENT ── */
+        .recent{border-top:1px solid var(--border);flex-shrink:0;max-height:26vh;overflow-y:auto;}
+        .recent::-webkit-scrollbar{width:2px;}
+        .recent::-webkit-scrollbar-thumb{background:var(--border);}
+        .rh{display:flex;align-items:center;justify-content:space-between;padding:.5rem 1.2rem;background:var(--bg2);position:sticky;top:0;z-index:1;border-bottom:1px solid var(--border);}
+        .rh span{font-family:var(--mono);font-size:.6rem;font-weight:600;letter-spacing:.1em;color:var(--dim);text-transform:uppercase;}
+        .btn-undo{background:none;border:none;font-family:var(--mono);font-size:.6rem;color:var(--muted);letter-spacing:.06em;cursor:pointer;text-transform:uppercase;padding:2px 6px;}
+        .btn-undo:active{color:var(--amber);}
+        .rlist{list-style:none;}
+        .ri{display:flex;align-items:center;justify-content:space-between;padding:.55rem 1.2rem;border-bottom:1px solid var(--border);animation:si .2s ease-out;}
+        @keyframes si{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+        .ri:last-child{border-bottom:none;}
+        .rn{font-family:var(--sans);font-size:.82rem;font-weight:600;}
+        .rs{font-family:var(--mono);font-size:.68rem;color:var(--dim);margin-top:1px;}
+        .rb2{font-family:var(--mono);font-size:.6rem;padding:2px 7px;border-radius:20px;font-weight:600;flex-shrink:0;}
+        .rb2.ok{background:#00e67612;color:var(--green);}
+        .rb2.dup{background:#ffab0012;color:var(--amber);}
+
+        /* ── CAMERA MODAL (fullscreen, for setup challan scan) ── */
+        .cam-modal{display:none;position:fixed;inset:0;z-index:9999;background:#000;flex-direction:column;}
+        .cam-modal.open{display:flex;}
+        .cmh{display:flex;align-items:center;justify-content:space-between;padding:max(1rem,env(safe-area-inset-top)) 1.2rem 1rem;background:var(--bg2);border-bottom:1px solid var(--border);}
+        .cmh-t{font-family:var(--mono);font-size:.8rem;font-weight:700;letter-spacing:.12em;color:var(--text);text-transform:uppercase;}
+        .btn-xm{background:none;border:none;color:var(--dim);font-size:1.5rem;cursor:pointer;padding:.2rem;line-height:1;}
+        .cm-body{flex:1;position:relative;overflow:hidden;}
+        .cm-body video{width:100%;height:100%;object-fit:cover;display:block;}
+        .cm-vf{position:absolute;inset:0;pointer-events:none;display:flex;align-items:center;justify-content:center;}
+        .cm-hint{position:absolute;bottom:2rem;left:50%;transform:translateX(-50%);font-family:var(--mono);font-size:.72rem;color:rgba(255,255,255,.4);letter-spacing:.08em;text-align:center;white-space:nowrap;}
+        .cm-flash{position:absolute;inset:0;background:rgba(0,230,118,.3);pointer-events:none;opacity:0;}
+        .cm-flash.go{animation:cf .3s ease-out forwards;}
+
+        /* ── CONFIRM ── */
+        #sc-confirm{padding:2rem 1.5rem;justify-content:space-between;}
+        .cfh{text-align:center;}
+        .cfh .ci{font-size:2.2rem;display:block;margin-bottom:.4rem;}
+        .cfh h2{font-family:var(--mono);font-size:.95rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;}
+        .cft{background:var(--bg3);border-radius:14px;border:1px solid var(--border);overflow:hidden;}
+        .cfr{display:flex;justify-content:space-between;align-items:center;padding:.85rem 1.2rem;border-bottom:1px solid var(--border);}
+        .cfr:last-child{border-bottom:none;}
+        .cfl{font-family:var(--mono);font-size:.68rem;letter-spacing:.1em;color:var(--dim);text-transform:uppercase;}
+        .cfv{font-family:var(--mono);font-size:.88rem;font-weight:700;}
+        .cfv.big{font-size:1.5rem;color:var(--green);}
+        .cfacts{display:flex;flex-direction:column;gap:.7rem;padding-bottom:max(0px,env(safe-area-inset-bottom));}
+        .btn-go{background:var(--green);color:#000;border:none;border-radius:12px;padding:.95rem;font-family:var(--mono);font-size:.95rem;font-weight:700;letter-spacing:.08em;cursor:pointer;text-transform:uppercase;}
+        .btn-go:disabled{opacity:.5;cursor:not-allowed;}
+        .btn-bk{background:transparent;border:1px solid var(--border);color:var(--dim);border-radius:12px;padding:.8rem;font-family:var(--mono);font-size:.75rem;font-weight:600;letter-spacing:.08em;cursor:pointer;text-transform:uppercase;}
+
+        /* ── SUCCESS ── */
+        #sc-success{align-items:center;justify-content:center;gap:1.8rem;padding:2rem;text-align:center;}
+        .sring{width:90px;height:90px;border-radius:50%;background:#00e67614;border:2px solid var(--green);display:flex;align-items:center;justify-content:center;font-size:2.2rem;animation:pop .5s cubic-bezier(.34,1.56,.64,1) forwards;}
+        @keyframes pop{from{transform:scale(0);opacity:0}to{transform:scale(1);opacity:1}}
+        .st{font-family:var(--mono);font-size:1.1rem;font-weight:700;letter-spacing:.1em;color:var(--green);text-transform:uppercase;}
+        .ss{font-family:var(--mono);font-size:.75rem;color:var(--dim);margin-top:.25rem;}
+        .sdet{background:var(--bg3);border-radius:12px;padding:1.1rem 1.3rem;width:100%;max-width:280px;}
+        .srow{display:flex;justify-content:space-between;margin-bottom:.45rem;font-family:var(--mono);font-size:.78rem;}
+        .srow:last-child{margin-bottom:0;}
+        .sl2{color:var(--dim);}.sv2{color:var(--text);font-weight:600;}
+        .btn-new{background:var(--green);color:#000;border:none;border-radius:12px;padding:.85rem 2rem;font-family:var(--mono);font-size:.88rem;font-weight:700;letter-spacing:.08em;cursor:pointer;text-transform:uppercase;}
+    </style>
+</head>
+<body>
+
+<!-- ══════ SETUP SCREEN ══════ -->
+<div class="screen active" id="sc-setup">
+    <div class="logo"><span class="li">🚚</span><h1>Dispatch Hub</h1></div>
+    <div class="fields">
+        <div class="fg">
+            <label>Challan Number <span style="color:var(--red)">*</span></label>
+            <div class="irow">
+                <input type="text" id="f-challan" placeholder="e.g. 1042" maxlength="10" autocomplete="off" inputmode="numeric">
+                <button class="btn-cam-sm" id="btn-scan-challan" title="Scan with camera">📷</button>
+            </div>
+        </div>
+        <div class="fg">
+            <label>Vehicle No. <span style="color:var(--muted)">(optional)</span></label>
+            <input type="text" id="f-vehicle" placeholder="e.g. HR55AB1234" maxlength="12" autocomplete="off">
+        </div>
+        <div class="fg">
+            <label>Driver Mobile <span style="color:var(--muted)">(optional)</span></label>
+            <input type="tel" id="f-driver" placeholder="10-digit number" maxlength="10" autocomplete="off" inputmode="numeric">
+        </div>
+    </div>
+    <button class="btn-start" id="btn-start">Begin Scanning →</button>
+</div>
+
+
+<!-- ══════ SCAN SCREEN ══════ -->
+<div class="screen" id="sc-scan">
+    <input type="text" id="usb-in" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+
+    <div class="topbar">
+        <div class="tbl">
+            <span class="tbl-l">Challan</span>
+            <span class="tbl-v" id="tb-challan">—</span>
+        </div>
+        <div class="tbl" style="align-items:center">
+            <span class="tbl-l">Vehicle</span>
+            <span class="tbl-v" id="tb-vehicle">—</span>
+        </div>
+        <div class="tb-acts">
+            <button class="btn-cam-top" id="btn-cam-toggle">📷</button>
+            <button class="btn-end" id="btn-end">Finish</button>
+        </div>
+    </div>
+
+    <div class="counters">
+        <div class="cc"><div class="cl">Pipes Scanned</div><div class="cv g" id="cnt-p">0</div></div>
+        <div class="cc"><div class="cl">Total Wt. (kg)</div><div class="cv" id="cnt-w">0.00</div></div>
+    </div>
+
+    <!-- Inline camera for pipe scanning -->
+    <div class="cam-panel" id="cam-panel">
+        <video id="cam-video" autoplay playsinline muted></video>
+        <div class="vf">
+            <div class="vf-box">
+                <div class="vc tl"></div><div class="vc tr"></div>
+                <div class="vc bl"></div><div class="vc br"></div>
+                <div class="vl"></div>
+                <span class="vf-hint">Point at Pipe QR Code</span>
+            </div>
+        </div>
+        <div class="cam-flash" id="cam-flash"></div>
+        <button class="btn-x" id="btn-close-cam">✕</button>
+        <canvas id="cam-canvas" style="display:none"></canvas>
+    </div>
+
+    <!-- USB result + idle zone -->
+    <div class="scan-zone" id="scan-zone">
+        <div class="flash-ovl" id="flash-ovl"></div>
+        <div class="rc idle" id="rcard">
+            <div class="rsb"><span class="sd"></span><span id="rtxt">Waiting for scan…</span></div>
+            <div class="rb">
+                <div id="c-idle"><div class="ih"><span class="hico">⟫</span><p>USB gun or tap 📷 to use camera</p></div></div>
+                <div id="c-pipe" style="display:none">
+                    <div class="pn" id="p-name">—</div>
+                    <div class="pm" id="p-meta">—</div>
+                    <div class="pg">
+                        <div class="pc"><div class="pl">Size</div><div class="pv" id="p-sz">—</div></div>
+                        <div class="pc"><div class="pl">Weight</div><div class="pv" id="p-wt">—</div></div>
+                        <div class="pc"><div class="pl">ID</div><div class="pv" id="p-id">—</div></div>
+                    </div>
+                </div>
+                <div id="c-msg" style="display:none">
+                    <div class="mb"><span class="mi" id="m-ic">⚠️</span><p id="m-tx">—</p></div>
+                </div>
+            </div>
+        </div>
+        <div class="sh" id="scan-hint">Tap here to focus USB scanner</div>
+    </div>
+
+    <div class="recent">
+        <div class="rh">
+            <span>Recent Scans</span>
+            <button class="btn-undo" id="btn-undo">↩ Undo Last</button>
+        </div>
+        <ul class="rlist" id="rlist"></ul>
+    </div>
+</div>
+
+
+<!-- ══════ CAMERA MODAL (challan scan, fullscreen) ══════ -->
+<div class="cam-modal" id="cam-modal">
+    <div class="cmh">
+        <span class="cmh-t">Scan Challan</span>
+        <button class="btn-xm" id="btn-close-modal">✕</button>
+    </div>
+    <div class="cm-body" id="cm-body">
+        <video id="modal-video" autoplay playsinline muted style="width:100%;height:100%;object-fit:cover;display:block;"></video>
+        <div class="cm-vf">
+            <div class="vf-box">
+                <div class="vc tl"></div><div class="vc tr"></div>
+                <div class="vc bl"></div><div class="vc br"></div>
+                <div class="vl"></div>
+            </div>
+        </div>
+        <div class="cm-flash" id="modal-flash"></div>
+        <div class="cm-hint">Scan any QR code or barcode number</div>
+        <canvas id="modal-canvas" style="display:none"></canvas>
+    </div>
+</div>
+
+
+<!-- ══════ CONFIRM SCREEN ══════ -->
+<div class="screen" id="sc-confirm">
+    <div class="cfh"><span class="ci">📋</span><h2>Review Shipment</h2></div>
+    <div class="cft">
+        <div class="cfr"><span class="cfl">Challan No.</span><span class="cfv" id="cf-ch">—</span></div>
+        <div class="cfr"><span class="cfl">Vehicle</span><span class="cfv" id="cf-ve">—</span></div>
+        <div class="cfr"><span class="cfl">Driver Mobile</span><span class="cfv" id="cf-dr">—</span></div>
+        <div class="cfr"><span class="cfl">Total Pipes</span><span class="cfv big" id="cf-pi">0</span></div>
+        <div class="cfr"><span class="cfl">Total Weight</span><span class="cfv" id="cf-wt">0.00 kg</span></div>
+    </div>
+    <div class="cfacts">
+        <button class="btn-go" id="btn-dispatch">✓ Confirm &amp; Dispatch</button>
+        <button class="btn-bk" id="btn-back">← Back to Scanning</button>
+    </div>
+</div>
+
+
+<!-- ══════ SUCCESS SCREEN ══════ -->
+<div class="screen" id="sc-success">
+    <div class="sring">✓</div>
+    <div><div class="st">Dispatched!</div><div class="ss" id="s-sub">—</div></div>
+    <div class="sdet">
+        <div class="srow"><span class="sl2">Challan</span><span class="sv2" id="s-ch">—</span></div>
+        <div class="srow"><span class="sl2">Pipes</span><span class="sv2" id="s-pi">—</span></div>
+        <div class="srow"><span class="sl2">Weight</span><span class="sv2" id="s-wt">—</span></div>
+        <div class="srow"><span class="sl2">Time</span><span class="sv2" id="s-ti">—</span></div>
+    </div>
+    <button class="btn-new" id="btn-new">+ New Dispatch</button>
+</div>
+
+
+<script>
+// ═══════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════
+const S = {
+    challan:'', vehicle:'', driver:'',
+    items:[], ids:new Set(), totalWt:0,
+    busy:false,
+    // camera state
+    inlineCamStream:null, inlineRAF:null,
+    modalCamStream:null,  modalRAF:null,
+    lastQRtime:0,          // debounce same code
+    lastQRcode:''
+};
+
+// ═══════════════════════════════════════════════════
+//  HELPERS
+// ═══════════════════════════════════════════════════
+function goTo(id){
+    document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+}
+function vib(p){ try{ navigator.vibrate&&navigator.vibrate(p); }catch(e){} }
+
+function parseRaw(raw){
+    const t=raw.trim();
+    try{ const j=JSON.parse(t); if(j&&j.id) return {isPipe:true,id:parseInt(j.id)}; }catch(e){}
+    const n=parseInt(t,10);
+    if(!isNaN(n)&&String(n)===t) return {isPipe:true,id:n};
+    const m=t.match(/"id"\s*:\s*(\d+)/);
+    if(m) return {isPipe:true,id:parseInt(m[1])};
+    return {isPipe:false,value:t};
+}
+
+// ═══════════════════════════════════════════════════
+//  NATIVE CAMERA ENGINE
+//  Uses getUserMedia + jsQR (works on iOS Safari)
+// ═══════════════════════════════════════════════════
+async function startCamera(videoEl, canvasEl, onCode, onError){
+    try{
+        // CRITICAL for iOS: use 'ideal' not 'exact', and video must have playsinline
+        const constraints = {
+            video:{
+                facingMode:{ ideal:'environment' },
+                width:{ ideal:1280 },
+                height:{ ideal:720 }
+            }
+        };
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        videoEl.srcObject = stream;
+        // iOS Safari needs these set programmatically too
+        videoEl.setAttribute('playsinline','');
+        videoEl.setAttribute('muted','');
+        videoEl.muted = true;
+        await videoEl.play();
+
+        let lastCode='', lastTime=0;
+
+        function tick(){
+            if(videoEl.readyState < videoEl.HAVE_ENOUGH_DATA){
+                return requestAnimationFrame(tick);
+            }
+            canvasEl.width  = videoEl.videoWidth  || 640;
+            canvasEl.height = videoEl.videoHeight || 480;
+            const ctx = canvasEl.getContext('2d', {willReadFrequently:true});
+            ctx.drawImage(videoEl, 0, 0, canvasEl.width, canvasEl.height);
+            const img = ctx.getImageData(0, 0, canvasEl.width, canvasEl.height);
+            const code = jsQR(img.data, img.width, img.height, {
+                inversionAttempts:'dontInvert'
+            });
+            if(code && code.data){
+                const now = Date.now();
+                // Debounce: ignore same code within 2.5s
+                if(code.data !== lastCode || now - lastTime > 2500){
+                    lastCode = code.data;
+                    lastTime = now;
+                    onCode(code.data);
+                }
+            }
+            return requestAnimationFrame(tick);
+        }
+        const rafId = requestAnimationFrame(tick);
+        return { stream, rafId };
+
+    }catch(e){
+        onError(e);
+        return null;
+    }
+}
+
+function stopCamera(stream, rafId){
+    if(rafId) cancelAnimationFrame(rafId);
+    if(stream) stream.getTracks().forEach(t=>t.stop());
+}
+
+// ═══════════════════════════════════════════════════
+//  SETUP SCREEN
+// ═══════════════════════════════════════════════════
+const $ch = document.getElementById('f-challan');
+const $ve = document.getElementById('f-vehicle');
+const $dr = document.getElementById('f-driver');
+
+['f-challan','f-vehicle','f-driver'].forEach(id=>{
+    document.getElementById(id).addEventListener('keydown',e=>{ if(e.key==='Enter') document.getElementById('btn-start').click(); });
+});
+
+document.getElementById('btn-start').addEventListener('click',()=>{
+    const c=$ch.value.trim();
+    if(!c){
+        $ch.classList.add('err'); $ch.focus();
+        setTimeout(()=>$ch.classList.remove('err'),1400);
+        return;
+    }
+    S.challan=c; S.vehicle=$ve.value.trim().toUpperCase(); S.driver=$dr.value.trim();
+    document.getElementById('tb-challan').textContent=S.challan;
+    document.getElementById('tb-vehicle').textContent=S.vehicle||'—';
+    goTo('sc-scan');
+    focusUSB();
+});
+
+// Camera scan challan button → open modal
+document.getElementById('btn-scan-challan').addEventListener('click',()=>openCamModal());
+
+// ═══════════════════════════════════════════════════
+//  CAMERA MODAL  (challan scanning)
+// ═══════════════════════════════════════════════════
+async function openCamModal(){
+    document.getElementById('cam-modal').classList.add('open');
+    const video  = document.getElementById('modal-video');
+    const canvas = document.getElementById('modal-canvas');
+    const flash  = document.getElementById('modal-flash');
+
+    const result = await startCamera(video, canvas,
+        (code)=>{
+            // Got a scan — fill challan
+            const p = parseRaw(code);
+            const val = p.isPipe ? String(p.id) : p.value;
+            // Flash green
+            flash.classList.remove('go'); void flash.offsetWidth; flash.classList.add('go');
+            vib([30]);
+            setTimeout(()=>{
+                closeCamModal();
+                $ch.value = val;
+                $ch.classList.add('ok-flash');
+                setTimeout(()=>$ch.classList.remove('ok-flash'),1500);
+            }, 300);
+        },
+        (err)=>{
+            closeCamModal();
+            showCamError(err);
+        }
+    );
+    if(result){
+        S.modalCamStream = result.stream;
+        S.modalRAF       = result.rafId;
+    }
+}
+
+function closeCamModal(){
+    document.getElementById('cam-modal').classList.remove('open');
+    stopCamera(S.modalCamStream, S.modalRAF);
+    S.modalCamStream=null; S.modalRAF=null;
+}
+
+document.getElementById('btn-close-modal').addEventListener('click',closeCamModal);
+
+// ═══════════════════════════════════════════════════
+//  USB SCANNER INPUT
+// ═══════════════════════════════════════════════════
+const $usb = document.getElementById('usb-in');
+let usbBuf='', usbTimer=null;
+
+function focusUSB(){
+    if(S.inlineCamStream) return; // camera is active
+    $usb.focus();
+    const h=document.getElementById('scan-hint');
+    h.textContent='● USB Scanner Active'; h.style.color='var(--green)';
+}
+
+document.getElementById('scan-zone').addEventListener('click',()=>{
+    if(document.getElementById('sc-scan').classList.contains('active')) focusUSB();
+});
+
+$usb.addEventListener('keydown',e=>{
+    if(e.key==='Enter'){
+        const d=usbBuf.trim(); usbBuf=''; clearTimeout(usbTimer);
+        if(d) processScan(d);
+    }else if(e.key.length===1){
+        usbBuf+=e.key; clearTimeout(usbTimer);
+        usbTimer=setTimeout(()=>{ if(usbBuf){processScan(usbBuf.trim());usbBuf='';} },150);
+    }
+});
+$usb.addEventListener('paste',e=>{
+    e.preventDefault(); const t=e.clipboardData.getData('text/plain').trim(); if(t) processScan(t);
+});
+
+// ═══════════════════════════════════════════════════
+//  INLINE CAMERA (pipe scanning on scan screen)
+// ═══════════════════════════════════════════════════
+const camPanel = document.getElementById('cam-panel');
+const camBtn   = document.getElementById('btn-cam-toggle');
+
+camBtn.addEventListener('click',()=>{ S.inlineCamStream ? stopInlineCam() : startInlineCam(); });
+document.getElementById('btn-close-cam').addEventListener('click',stopInlineCam);
+
+async function startInlineCam(){
+    camPanel.classList.add('on');
+    camBtn.classList.add('on');
+    const video  = document.getElementById('cam-video');
+    const canvas = document.getElementById('cam-canvas');
+    const flash  = document.getElementById('cam-flash');
+    const hint   = document.getElementById('scan-hint');
+    hint.textContent='● Camera Active — USB paused'; hint.style.color='var(--amber)';
+
+    const result = await startCamera(video, canvas,
+        (code)=>{
+            flash.classList.remove('go'); void flash.offsetWidth; flash.classList.add('go');
+            processScan(code);
+        },
+        (err)=>{
+            stopInlineCam();
+            showCamError(err);
+        }
+    );
+    if(result){
+        S.inlineCamStream = result.stream;
+        S.inlineRAF       = result.rafId;
+    } else {
+        stopInlineCam();
+    }
+}
+
+function stopInlineCam(){
+    stopCamera(S.inlineCamStream, S.inlineRAF);
+    S.inlineCamStream=null; S.inlineRAF=null;
+    camPanel.classList.remove('on');
+    camBtn.classList.remove('on');
+    focusUSB();
+}
+
+// ═══════════════════════════════════════════════════
+//  CAMERA ERROR HELPER
+// ═══════════════════════════════════════════════════
+function showCamError(err){
+    let msg = 'Camera not available.';
+    if(err && err.name === 'NotAllowedError'){
+        msg = 'Camera permission denied.\n\niOS: Go to Settings → Safari → Camera → Allow.\n\nChrome: Tap the 🔒 icon in the address bar.';
+    } else if(err && err.name === 'NotFoundError'){
+        msg = 'No camera found on this device.';
+    } else if(err){
+        msg = `Camera error: ${err.message||err.name}`;
+    }
+    // Show as a nice overlay instead of alert
+    const d = document.createElement('div');
+    d.style.cssText='position:fixed;inset:0;z-index:9998;background:rgba(0,0,0,.85);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:2rem;text-align:center;gap:1.2rem;';
+    d.innerHTML=`
+        <div style="font-size:2.5rem">📷</div>
+        <div style="font-family:var(--mono);font-size:.85rem;color:var(--text);line-height:1.7;white-space:pre-wrap;">${msg}</div>
+        <button onclick="this.parentNode.remove()" style="background:var(--green);color:#000;border:none;border-radius:10px;padding:.8rem 2rem;font-family:var(--mono);font-weight:700;font-size:.85rem;cursor:pointer;letter-spacing:.06em;">OK</button>
+    `;
+    document.body.appendChild(d);
+}
+
+// ═══════════════════════════════════════════════════
+//  CORE SCAN PROCESSOR
+// ═══════════════════════════════════════════════════
+async function processScan(raw){
+    if(S.busy) return;
+    S.busy=true;
+
+    const p=parseRaw(raw);
+    if(!p.isPipe||!p.id){
+        showCard('err','❌','Invalid QR / Barcode');
+        vib([100,50,100]); S.busy=false; return;
+    }
+    const id=p.id;
+    if(S.ids.has(id)){
+        showCard('warn','⚠️',`Already scanned (ID ${id})`);
+        addRecent(null,id,true); vib([200,80,200]); S.busy=false; return;
+    }
+    try{
+        const res=await fetch(`/api/labels/${id}`);
+        if(!res.ok) throw new Error(`Not found — ID ${id}`);
+        const item=await res.json();
+        if(item.dispatched_at){
+            showCard('warn','⚠️','Already dispatched');
+            vib([200,80,200]); S.busy=false; return;
+        }
+        S.items.push(item); S.ids.add(item.id); S.totalWt+=parseFloat(item.weight_g||0);
+        showCard('ok',null,null,item);
+        addRecent(item,null,false);
+        updateCounters(); doFlash(); vib([40]);
+    }catch(e){
+        showCard('err','❌',e.message);
+        vib([100,50,100]);
+    }
+    S.busy=false;
+}
+
+// ═══════════════════════════════════════════════════
+//  RESULT CARD
+// ═══════════════════════════════════════════════════
+function showCard(state,icon,msg,pipe){
+    const card=document.getElementById('rcard');
+    const rtxt=document.getElementById('rtxt');
+    const ci=document.getElementById('c-idle'),cp=document.getElementById('c-pipe'),cm=document.getElementById('c-msg');
+    card.className=`rc ${state}`;
+    ci.style.display='none'; cp.style.display='none'; cm.style.display='none';
+    if(state==='ok'&&pipe){
+        rtxt.textContent='✓ Added to Shipment'; cp.style.display='block';
+        document.getElementById('p-name').textContent=pipe.pipe_name||'—';
+        document.getElementById('p-meta').textContent=`${pipe.color||''} · ${pipe.batch||''}`;
+        document.getElementById('p-sz').textContent=pipe.size||'—';
+        document.getElementById('p-wt').textContent=parseFloat(pipe.weight_g||0).toFixed(2)+' kg';
+        document.getElementById('p-id').textContent=`#${pipe.id}`;
+    } else if(state==='warn'||state==='err'){
+        rtxt.textContent=state==='warn'?'Warning':'Error';
+        cm.style.display='block';
+        document.getElementById('m-ic').textContent=icon;
+        document.getElementById('m-tx').textContent=msg;
+        card.classList.add('shk'); setTimeout(()=>card.classList.remove('shk'),350);
+        setTimeout(()=>{ if(card.className.includes(state)) resetCard(); },3000);
+    }
+}
+
+function resetCard(){
+    const c=document.getElementById('rcard');
+    c.className='rc idle';
+    document.getElementById('rtxt').textContent='Waiting for scan…';
+    document.getElementById('c-idle').style.display='block';
+    document.getElementById('c-pipe').style.display='none';
+    document.getElementById('c-msg').style.display='none';
+}
+
+function updateCounters(){
+    document.getElementById('cnt-p').textContent=S.items.length;
+    document.getElementById('cnt-w').textContent=S.totalWt.toFixed(2);
+}
+
+function addRecent(pipe,dupId,isDup){
+    const li=document.createElement('li'); li.className='ri';
+    li.innerHTML=isDup
+        ?`<div><div class="rn">ID #${dupId}</div><div class="rs">Already in list</div></div><span class="rb2 dup">DUPE</span>`
+        :`<div><div class="rn">${pipe.pipe_name}</div><div class="rs">${pipe.size} · ${pipe.color} · ${parseFloat(pipe.weight_g).toFixed(2)} kg</div></div><span class="rb2 ok">OK</span>`;
+    const list=document.getElementById('rlist');
+    list.insertBefore(li,list.firstChild);
+    while(list.children.length>20) list.removeChild(list.lastChild);
+}
+
+function doFlash(){
+    const o=document.getElementById('flash-ovl');
+    o.classList.remove('go'); void o.offsetWidth; o.classList.add('go');
+}
+
+// ═══════════════════════════════════════════════════
+//  UNDO
+// ═══════════════════════════════════════════════════
+document.getElementById('btn-undo').addEventListener('click',()=>{
+    if(!S.items.length) return;
+    const last=S.items.pop(); S.ids.delete(last.id);
+    S.totalWt=Math.max(0,S.totalWt-parseFloat(last.weight_g||0));
+    updateCounters();
+    const l=document.getElementById('rlist'); if(l.firstChild) l.removeChild(l.firstChild);
+    resetCard(); if(!S.inlineCamStream) focusUSB(); vib([30]);
+});
+
+// ═══════════════════════════════════════════════════
+//  FINISH → CONFIRM
+// ═══════════════════════════════════════════════════
+document.getElementById('btn-end').addEventListener('click',()=>{
+    if(!S.items.length){ alert('Scan at least one pipe first.'); return; }
+    stopInlineCam();
+    document.getElementById('cf-ch').textContent=S.challan;
+    document.getElementById('cf-ve').textContent=S.vehicle||'N/A';
+    document.getElementById('cf-dr').textContent=S.driver||'N/A';
+    document.getElementById('cf-pi').textContent=S.items.length;
+    document.getElementById('cf-wt').textContent=S.totalWt.toFixed(2)+' kg';
+    goTo('sc-confirm');
+});
+document.getElementById('btn-back').addEventListener('click',()=>{ goTo('sc-scan'); focusUSB(); });
+
+// ═══════════════════════════════════════════════════
+//  DISPATCH
+// ═══════════════════════════════════════════════════
+document.getElementById('btn-dispatch').addEventListener('click',async()=>{
+    const btn=document.getElementById('btn-dispatch');
+    btn.disabled=true; btn.textContent='Sending…';
+    try{
+        const res=await fetch('/api/shipments/create',{
+            method:'POST',headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({
+                meta:{challan_number:S.challan,vehicle:S.vehicle,driver_mobile:S.driver,customer:'',address:'',customer_mobile:''},
+                items:S.items
+            })
+        });
+        const d=await res.json();
+        if(!res.ok||!d.success) throw new Error(d.message||'Server error');
+        document.getElementById('s-ch').textContent=S.challan;
+        document.getElementById('s-pi').textContent=S.items.length+' pipes';
+        document.getElementById('s-wt').textContent=S.totalWt.toFixed(2)+' kg';
+        document.getElementById('s-ti').textContent=new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
+        document.getElementById('s-sub').textContent=d.message||'Shipment created';
+        vib([50,50,200]); goTo('sc-success');
+    }catch(e){
+        alert('❌ '+e.message);
+        btn.disabled=false; btn.textContent='✓ Confirm & Dispatch';
+    }
+});
+
+// ═══════════════════════════════════════════════════
+//  NEW DISPATCH
+// ═══════════════════════════════════════════════════
+document.getElementById('btn-new').addEventListener('click',()=>{
+    stopInlineCam(); closeCamModal();
+    Object.assign(S,{challan:'',vehicle:'',driver:'',items:[],ids:new Set(),totalWt:0,busy:false});
+    $ch.value=''; $ve.value=''; $dr.value='';
+    document.getElementById('rlist').innerHTML='';
+    updateCounters(); resetCard();
+    goTo('sc-setup'); setTimeout(()=>$ch.focus(),150);
+});
+
+// ═══════════════════════════════════════════════════
+//  RE-FOCUS USB on visibility change
+// ═══════════════════════════════════════════════════
+document.addEventListener('visibilitychange',()=>{
+    if(!document.hidden&&document.getElementById('sc-scan').classList.contains('active')&&!S.inlineCamStream)
+        setTimeout(focusUSB,300);
+});
+
+// Init
+setTimeout(()=>$ch.focus(),200);
+</script>
+</body>
+</html>

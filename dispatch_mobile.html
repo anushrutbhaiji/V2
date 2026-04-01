@@ -1,0 +1,1208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Dispatch">
+    <meta name="theme-color" content="#0a0a0a">
+    <title>Dispatch Mobile</title>
+    
+    <!-- PWA Manifest Inline -->
+    <script>
+        const manifest = {
+            name: "Dispatch Hub Mobile",
+            short_name: "Dispatch",
+            start_url: "/dispatch_mobile.html",
+            display: "standalone",
+            background_color: "#0a0a0a",
+            theme_color: "#0a0a0a",
+            icons: [{
+                src: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230a0a0a'/><text y='.9em' font-size='80' x='10'>🚚</text></svg>",
+                sizes: "192x192", type: "image/svg+xml"
+            }]
+        };
+        const blob = new Blob([JSON.stringify(manifest)], {type: 'application/json'});
+        const manifestURL = URL.createObjectURL(blob);
+        document.write(`<link rel="manifest" href="${manifestURL}">`);
+    </script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --bg: #0a0a0a;
+            --bg2: #111111;
+            --bg3: #1a1a1a;
+            --border: #2a2a2a;
+            --text: #f0f0f0;
+            --text-dim: #666;
+            --text-muted: #444;
+            --green: #00e676;
+            --green-dim: #00c853;
+            --red: #ff1744;
+            --amber: #ffab00;
+            --blue: #448aff;
+            --mono: 'IBM Plex Mono', monospace;
+            --sans: 'IBM Plex Sans', sans-serif;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+        html, body {
+            height: 100%;
+            background: var(--bg);
+            color: var(--text);
+            font-family: var(--sans);
+            overscroll-behavior: none;
+        }
+
+        /* ── SCREENS ── */
+        .screen { 
+            display: none; 
+            flex-direction: column; 
+            height: 100dvh;
+            overflow: hidden;
+        }
+        .screen.active { display: flex; }
+
+        /* ── SETUP SCREEN ── */
+        #screen-setup {
+            padding: 2rem 1.5rem;
+            justify-content: center;
+            gap: 2rem;
+        }
+
+        .setup-logo {
+            text-align: center;
+        }
+        .setup-logo .icon {
+            font-size: 3rem;
+            display: block;
+            margin-bottom: 0.5rem;
+        }
+        .setup-logo h1 {
+            font-family: var(--mono);
+            font-size: 1.1rem;
+            font-weight: 700;
+            letter-spacing: 0.15em;
+            color: var(--text-dim);
+            text-transform: uppercase;
+        }
+
+        .setup-fields { display: flex; flex-direction: column; gap: 1rem; }
+
+        .field-group label {
+            display: block;
+            font-family: var(--mono);
+            font-size: 0.7rem;
+            font-weight: 600;
+            letter-spacing: 0.12em;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            margin-bottom: 0.5rem;
+        }
+        .field-group input {
+            width: 100%;
+            background: var(--bg3);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 0.9rem 1rem;
+            color: var(--text);
+            font-family: var(--mono);
+            font-size: 1.1rem;
+            font-weight: 600;
+            letter-spacing: 0.05em;
+            outline: none;
+            transition: border-color 0.15s;
+        }
+        .field-group input:focus { border-color: var(--green); }
+        .field-group input::placeholder { color: var(--text-muted); font-weight: 400; }
+
+        .btn-start {
+            background: var(--green);
+            color: #000;
+            border: none;
+            border-radius: 12px;
+            padding: 1rem;
+            font-family: var(--mono);
+            font-size: 1rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            cursor: pointer;
+            text-transform: uppercase;
+            transition: opacity 0.15s, transform 0.1s;
+            width: 100%;
+        }
+        .btn-start:active { transform: scale(0.98); opacity: 0.9; }
+
+        /* ── SCAN SCREEN ── */
+        #screen-scan {
+            position: relative;
+        }
+
+        /* Top Bar */
+        .topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1rem 1.2rem;
+            border-bottom: 1px solid var(--border);
+            background: var(--bg2);
+            flex-shrink: 0;
+        }
+        .topbar-left { display: flex; flex-direction: column; gap: 2px; }
+        .topbar-label {
+            font-family: var(--mono);
+            font-size: 0.65rem;
+            font-weight: 600;
+            letter-spacing: 0.12em;
+            color: var(--text-dim);
+            text-transform: uppercase;
+        }
+        .topbar-value {
+            font-family: var(--mono);
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: var(--text);
+        }
+        .btn-end {
+            background: transparent;
+            border: 1px solid #ff1744;
+            color: #ff1744;
+            border-radius: 8px;
+            padding: 0.45rem 0.8rem;
+            font-family: var(--mono);
+            font-size: 0.7rem;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            cursor: pointer;
+            text-transform: uppercase;
+        }
+
+        /* Counter Strip */
+        .counter-strip {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0;
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+        .counter-cell {
+            padding: 0.9rem 1.2rem;
+            border-right: 1px solid var(--border);
+        }
+        .counter-cell:last-child { border-right: none; }
+        .counter-cell .c-label {
+            font-family: var(--mono);
+            font-size: 0.62rem;
+            letter-spacing: 0.1em;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            margin-bottom: 2px;
+        }
+        .counter-cell .c-val {
+            font-family: var(--mono);
+            font-size: 1.8rem;
+            font-weight: 700;
+            line-height: 1;
+        }
+        .counter-cell .c-val.green { color: var(--green); }
+        .counter-cell .c-val.white { color: var(--text); }
+
+        /* Scan Zone */
+        .scan-zone {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 1.5rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Hidden scanner input - always focused */
+        #scanner-input {
+            position: absolute;
+            opacity: 0;
+            pointer-events: none;
+            width: 1px;
+            height: 1px;
+        }
+
+        /* Result Card */
+        .result-card {
+            width: 100%;
+            max-width: 420px;
+            background: var(--bg3);
+            border-radius: 16px;
+            border: 1px solid var(--border);
+            overflow: hidden;
+            transition: border-color 0.2s;
+        }
+        .result-card.state-idle { border-color: var(--border); }
+        .result-card.state-ok { border-color: var(--green); }
+        .result-card.state-warn { border-color: var(--amber); }
+        .result-card.state-err { border-color: var(--red); }
+
+        .result-status-bar {
+            padding: 0.6rem 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-family: var(--mono);
+            font-size: 0.7rem;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            transition: background 0.2s, color 0.2s;
+        }
+        .result-card.state-idle .result-status-bar { background: var(--bg2); color: var(--text-dim); }
+        .result-card.state-ok .result-status-bar { background: #00e67618; color: var(--green); }
+        .result-card.state-warn .result-status-bar { background: #ffab0018; color: var(--amber); }
+        .result-card.state-err .result-status-bar { background: #ff174418; color: var(--red); }
+
+        .status-dot {
+            width: 8px; height: 8px; border-radius: 50%;
+            background: currentColor;
+            flex-shrink: 0;
+        }
+        .state-ok .status-dot { animation: pulse-green 1s ease-out forwards; }
+
+        @keyframes pulse-green {
+            0% { box-shadow: 0 0 0 0 rgba(0, 230, 118, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(0, 230, 118, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(0, 230, 118, 0); }
+        }
+
+        .result-body {
+            padding: 1.2rem;
+        }
+        .result-idle-text {
+            text-align: center;
+            padding: 1.5rem 0;
+        }
+        .result-idle-text .scanner-icon {
+            font-size: 2.5rem;
+            display: block;
+            margin-bottom: 0.8rem;
+            opacity: 0.3;
+        }
+        .result-idle-text p {
+            font-family: var(--mono);
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            letter-spacing: 0.05em;
+        }
+
+        .pipe-name {
+            font-family: var(--sans);
+            font-size: 1.5rem;
+            font-weight: 700;
+            line-height: 1.2;
+            color: var(--text);
+            margin-bottom: 0.3rem;
+        }
+        .pipe-meta {
+            font-family: var(--mono);
+            font-size: 0.8rem;
+            color: var(--text-dim);
+            letter-spacing: 0.04em;
+            margin-bottom: 1rem;
+        }
+
+        .pipe-details-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 0.75rem;
+        }
+        .pipe-detail {
+            background: var(--bg2);
+            border-radius: 8px;
+            padding: 0.6rem 0.7rem;
+        }
+        .pipe-detail .d-label {
+            font-family: var(--mono);
+            font-size: 0.6rem;
+            letter-spacing: 0.1em;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            margin-bottom: 3px;
+        }
+        .pipe-detail .d-val {
+            font-family: var(--mono);
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        /* Error / Warning message */
+        .msg-text {
+            text-align: center;
+            padding: 1.5rem 0;
+        }
+        .msg-text .msg-icon { font-size: 2rem; display: block; margin-bottom: 0.5rem; }
+        .msg-text p {
+            font-family: var(--mono);
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        .state-warn .msg-text p { color: var(--amber); }
+        .state-err .msg-text p { color: var(--red); }
+
+        /* Scan hint */
+        .scan-hint {
+            margin-top: 1.2rem;
+            font-family: var(--mono);
+            font-size: 0.68rem;
+            color: var(--text-muted);
+            letter-spacing: 0.05em;
+            text-align: center;
+        }
+
+        /* Flash overlay for scan success */
+        .flash-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 230, 118, 0.08);
+            pointer-events: none;
+            opacity: 0;
+            border-radius: 0;
+        }
+        .flash-overlay.flash-anim {
+            animation: flash 0.4s ease-out forwards;
+        }
+        @keyframes flash {
+            0% { opacity: 1; }
+            100% { opacity: 0; }
+        }
+
+        /* Recent Items List */
+        .recent-section {
+            border-top: 1px solid var(--border);
+            flex-shrink: 0;
+            max-height: 32vh;
+            overflow-y: auto;
+        }
+        .recent-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.6rem 1.2rem;
+            background: var(--bg2);
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            border-bottom: 1px solid var(--border);
+        }
+        .recent-header span {
+            font-family: var(--mono);
+            font-size: 0.65rem;
+            font-weight: 600;
+            letter-spacing: 0.1em;
+            color: var(--text-dim);
+            text-transform: uppercase;
+        }
+        .btn-clear-recent {
+            background: none;
+            border: none;
+            font-family: var(--mono);
+            font-size: 0.62rem;
+            color: var(--text-muted);
+            letter-spacing: 0.08em;
+            cursor: pointer;
+            padding: 2px 6px;
+            border-radius: 4px;
+            text-transform: uppercase;
+        }
+        .recent-list { list-style: none; }
+        .recent-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.6rem 1.2rem;
+            border-bottom: 1px solid var(--border);
+            animation: slideIn 0.2s ease-out;
+        }
+        .recent-item:last-child { border-bottom: none; }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(-8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .recent-item .ri-name {
+            font-family: var(--sans);
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text);
+        }
+        .recent-item .ri-meta {
+            font-family: var(--mono);
+            font-size: 0.7rem;
+            color: var(--text-dim);
+            margin-top: 1px;
+        }
+        .recent-item .ri-badge {
+            font-family: var(--mono);
+            font-size: 0.65rem;
+            padding: 2px 8px;
+            border-radius: 20px;
+            background: #00e67615;
+            color: var(--green);
+            font-weight: 600;
+            letter-spacing: 0.05em;
+            flex-shrink: 0;
+        }
+        .recent-item.dup .ri-badge { background: #ffab0015; color: var(--amber); }
+
+        /* ── CONFIRM SCREEN ── */
+        #screen-confirm {
+            padding: 2rem 1.5rem;
+            justify-content: space-between;
+        }
+        .confirm-header { text-align: center; }
+        .confirm-header .confirm-icon { font-size: 2.5rem; display: block; margin-bottom: 0.5rem; }
+        .confirm-header h2 {
+            font-family: var(--mono);
+            font-size: 1rem;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            color: var(--text);
+            text-transform: uppercase;
+        }
+
+        .confirm-summary {
+            background: var(--bg3);
+            border-radius: 16px;
+            border: 1px solid var(--border);
+            overflow: hidden;
+        }
+        .confirm-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.9rem 1.2rem;
+            border-bottom: 1px solid var(--border);
+        }
+        .confirm-row:last-child { border-bottom: none; }
+        .confirm-row .cr-label {
+            font-family: var(--mono);
+            font-size: 0.7rem;
+            letter-spacing: 0.1em;
+            color: var(--text-dim);
+            text-transform: uppercase;
+        }
+        .confirm-row .cr-val {
+            font-family: var(--mono);
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: var(--text);
+            text-align: right;
+        }
+        .confirm-row .cr-val.big {
+            font-size: 1.6rem;
+            color: var(--green);
+        }
+
+        .confirm-actions { display: flex; flex-direction: column; gap: 0.75rem; }
+        .btn-confirm-dispatch {
+            background: var(--green);
+            color: #000;
+            border: none;
+            border-radius: 12px;
+            padding: 1rem;
+            font-family: var(--mono);
+            font-size: 1rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            cursor: pointer;
+            text-transform: uppercase;
+            transition: opacity 0.15s;
+        }
+        .btn-confirm-dispatch:disabled { opacity: 0.5; }
+        .btn-back {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-dim);
+            border-radius: 12px;
+            padding: 0.85rem;
+            font-family: var(--mono);
+            font-size: 0.8rem;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            cursor: pointer;
+            text-transform: uppercase;
+        }
+
+        /* ── SUCCESS SCREEN ── */
+        #screen-success {
+            align-items: center;
+            justify-content: center;
+            gap: 2rem;
+            padding: 2rem;
+            text-align: center;
+        }
+        .success-circle {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            background: #00e67618;
+            border: 2px solid var(--green);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.5rem;
+            animation: successPop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        }
+        @keyframes successPop {
+            from { transform: scale(0); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+        .success-title {
+            font-family: var(--mono);
+            font-size: 1.2rem;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            color: var(--green);
+            text-transform: uppercase;
+        }
+        .success-sub {
+            font-family: var(--mono);
+            font-size: 0.8rem;
+            color: var(--text-dim);
+            margin-top: 0.3rem;
+        }
+        .success-meta {
+            background: var(--bg3);
+            border-radius: 12px;
+            padding: 1.2rem;
+            width: 100%;
+            max-width: 300px;
+        }
+        .success-meta .sm-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+            font-family: var(--mono);
+            font-size: 0.8rem;
+        }
+        .success-meta .sm-row:last-child { margin-bottom: 0; }
+        .success-meta .sm-label { color: var(--text-dim); }
+        .success-meta .sm-val { color: var(--text); font-weight: 600; }
+
+        .btn-new-dispatch {
+            background: var(--green);
+            color: #000;
+            border: none;
+            border-radius: 12px;
+            padding: 0.9rem 2rem;
+            font-family: var(--mono);
+            font-size: 0.9rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            cursor: pointer;
+            text-transform: uppercase;
+        }
+
+        /* Vibrational feedback visual */
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20% { transform: translateX(-6px); }
+            40% { transform: translateX(6px); }
+            60% { transform: translateX(-4px); }
+            80% { transform: translateX(4px); }
+        }
+        .shake { animation: shake 0.3s ease; }
+
+        /* ── SCROLLBAR ── */
+        .recent-section::-webkit-scrollbar { width: 3px; }
+        .recent-section::-webkit-scrollbar-track { background: transparent; }
+        .recent-section::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+
+        /* Safe area for notched phones */
+        .topbar { padding-top: max(1rem, env(safe-area-inset-top)); }
+        #screen-setup { padding-top: max(2rem, env(safe-area-inset-top)); }
+        .confirm-actions { padding-bottom: max(0px, env(safe-area-inset-bottom)); }
+    </style>
+</head>
+<body>
+
+<!-- ══ SETUP SCREEN ══ -->
+<div class="screen active" id="screen-setup">
+    <div class="setup-logo">
+        <span class="icon">🚚</span>
+        <h1>Dispatch Hub</h1>
+    </div>
+
+    <div class="setup-fields">
+        <div class="field-group">
+            <label>Challan Number *</label>
+            <input type="text" id="setup-challan" placeholder="e.g. 1042" maxlength="10" autocomplete="off">
+        </div>
+        <div class="field-group">
+            <label>Vehicle No. (optional)</label>
+            <input type="text" id="setup-vehicle" placeholder="e.g. HR55AB1234" maxlength="12" autocomplete="off">
+        </div>
+        <div class="field-group">
+            <label>Driver Mobile (optional)</label>
+            <input type="tel" id="setup-driver" placeholder="10-digit number" maxlength="10" autocomplete="off">
+        </div>
+    </div>
+
+    <button class="btn-start" id="btn-start">Begin Scanning →</button>
+</div>
+
+
+<!-- ══ SCAN SCREEN ══ -->
+<div class="screen" id="screen-scan">
+    <!-- Hidden input for scanner -->
+    <input type="text" id="scanner-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+
+    <!-- Top Bar -->
+    <div class="topbar">
+        <div class="topbar-left">
+            <span class="topbar-label">Challan</span>
+            <span class="topbar-value" id="topbar-challan">—</span>
+        </div>
+        <div class="topbar-left" style="align-items:center;">
+            <span class="topbar-label">Vehicle</span>
+            <span class="topbar-value" id="topbar-vehicle">—</span>
+        </div>
+        <button class="btn-end" id="btn-end-dispatch">Finish</button>
+    </div>
+
+    <!-- Counter Strip -->
+    <div class="counter-strip">
+        <div class="counter-cell">
+            <div class="c-label">Pipes Scanned</div>
+            <div class="c-val green" id="count-scanned">0</div>
+        </div>
+        <div class="counter-cell">
+            <div class="c-label">Total Wt. (kg)</div>
+            <div class="c-val white" id="count-weight">0.00</div>
+        </div>
+    </div>
+
+    <!-- Scan Zone -->
+    <div class="scan-zone" id="scan-zone">
+        <div class="flash-overlay" id="flash-overlay"></div>
+
+        <!-- Result Card -->
+        <div class="result-card state-idle" id="result-card">
+            <div class="result-status-bar">
+                <span class="status-dot"></span>
+                <span id="result-status-text">Waiting for scan…</span>
+            </div>
+            <div class="result-body" id="result-body">
+                <!-- Idle State -->
+                <div class="result-idle-text" id="idle-content">
+                    <span class="scanner-icon">⟫</span>
+                    <p>Point scanner at QR code</p>
+                </div>
+                <!-- Pipe Data (hidden by default) -->
+                <div id="pipe-content" style="display:none;">
+                    <div class="pipe-name" id="pipe-name">—</div>
+                    <div class="pipe-meta" id="pipe-meta">—</div>
+                    <div class="pipe-details-grid">
+                        <div class="pipe-detail">
+                            <div class="d-label">Size</div>
+                            <div class="d-val" id="pipe-size">—</div>
+                        </div>
+                        <div class="pipe-detail">
+                            <div class="d-label">Weight</div>
+                            <div class="d-val" id="pipe-weight">—</div>
+                        </div>
+                        <div class="pipe-detail">
+                            <div class="d-label">ID</div>
+                            <div class="d-val" id="pipe-id">—</div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Message State (error/warning) -->
+                <div id="msg-content" style="display:none;">
+                    <div class="msg-text">
+                        <span class="msg-icon" id="msg-icon">⚠️</span>
+                        <p id="msg-text-p">—</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="scan-hint" id="scan-hint">Tap anywhere to focus scanner</div>
+    </div>
+
+    <!-- Recent Items -->
+    <div class="recent-section" id="recent-section">
+        <div class="recent-header">
+            <span>Recent Scans</span>
+            <button class="btn-clear-recent" id="btn-undo-last">↩ Undo Last</button>
+        </div>
+        <ul class="recent-list" id="recent-list">
+            <!-- populated by JS -->
+        </ul>
+    </div>
+</div>
+
+
+<!-- ══ CONFIRM SCREEN ══ -->
+<div class="screen" id="screen-confirm">
+    <div class="confirm-header">
+        <span class="confirm-icon">📋</span>
+        <h2>Review Shipment</h2>
+    </div>
+
+    <div class="confirm-summary">
+        <div class="confirm-row">
+            <span class="cr-label">Challan No.</span>
+            <span class="cr-val" id="cf-challan">—</span>
+        </div>
+        <div class="confirm-row">
+            <span class="cr-label">Vehicle</span>
+            <span class="cr-val" id="cf-vehicle">—</span>
+        </div>
+        <div class="confirm-row">
+            <span class="cr-label">Driver Mobile</span>
+            <span class="cr-val" id="cf-driver">—</span>
+        </div>
+        <div class="confirm-row">
+            <span class="cr-label">Total Pipes</span>
+            <span class="cr-val big" id="cf-pipes">0</span>
+        </div>
+        <div class="confirm-row">
+            <span class="cr-label">Total Weight</span>
+            <span class="cr-val" id="cf-weight">0.00 kg</span>
+        </div>
+    </div>
+
+    <div class="confirm-actions">
+        <button class="btn-confirm-dispatch" id="btn-confirm-dispatch">✓ Confirm & Dispatch</button>
+        <button class="btn-back" id="btn-back-scan">← Back to Scanning</button>
+    </div>
+</div>
+
+
+<!-- ══ SUCCESS SCREEN ══ -->
+<div class="screen" id="screen-success">
+    <div class="success-circle">✓</div>
+    <div>
+        <div class="success-title">Dispatched!</div>
+        <div class="success-sub" id="success-sub">Shipment created successfully</div>
+    </div>
+    <div class="success-meta" id="success-meta">
+        <div class="sm-row"><span class="sm-label">Challan</span><span class="sm-val" id="s-challan">—</span></div>
+        <div class="sm-row"><span class="sm-label">Pipes</span><span class="sm-val" id="s-pipes">—</span></div>
+        <div class="sm-row"><span class="sm-label">Weight</span><span class="sm-val" id="s-weight">—</span></div>
+        <div class="sm-row"><span class="sm-label">Time</span><span class="sm-val" id="s-time">—</span></div>
+    </div>
+    <button class="btn-new-dispatch" id="btn-new-dispatch">+ New Dispatch</button>
+</div>
+
+
+<script>
+// ══════════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════════
+const state = {
+    challan: '',
+    vehicle: '',
+    driver: '',
+    scannedItems: [],
+    scannedIds: new Set(),
+    totalWeight: 0,
+    isProcessing: false
+};
+
+// ══════════════════════════════════════════
+//  SCREEN NAVIGATION
+// ══════════════════════════════════════════
+function showScreen(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+}
+
+// ══════════════════════════════════════════
+//  SETUP SCREEN
+// ══════════════════════════════════════════
+document.getElementById('btn-start').addEventListener('click', () => {
+    const challan = document.getElementById('setup-challan').value.trim();
+    if (!challan) {
+        document.getElementById('setup-challan').focus();
+        document.getElementById('setup-challan').style.borderColor = 'var(--red)';
+        setTimeout(() => document.getElementById('setup-challan').style.borderColor = '', 1500);
+        return;
+    }
+    state.challan = challan;
+    state.vehicle = document.getElementById('setup-vehicle').value.trim();
+    state.driver = document.getElementById('setup-driver').value.trim();
+
+    // Update topbar
+    document.getElementById('topbar-challan').textContent = state.challan;
+    document.getElementById('topbar-vehicle').textContent = state.vehicle || '—';
+
+    showScreen('screen-scan');
+    focusScanner();
+});
+
+// Enter key on setup fields
+['setup-challan','setup-vehicle','setup-driver'].forEach(id => {
+    document.getElementById(id).addEventListener('keydown', e => {
+        if (e.key === 'Enter') document.getElementById('btn-start').click();
+    });
+});
+
+// ══════════════════════════════════════════
+//  SCANNER INPUT (always focused)
+// ══════════════════════════════════════════
+const scannerInput = document.getElementById('scanner-input');
+let scanBuffer = '';
+let bufferTimer = null;
+
+function focusScanner() {
+    scannerInput.focus();
+    document.getElementById('scan-hint').textContent = '● Scanner Active';
+    document.getElementById('scan-hint').style.color = 'var(--green)';
+}
+
+// Keep scanner focused on tap
+document.getElementById('scan-zone').addEventListener('click', () => {
+    if (document.getElementById('screen-scan').classList.contains('active')) {
+        focusScanner();
+    }
+});
+
+// Handle scanner input (USB barcode guns send chars then Enter)
+scannerInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+        const data = scanBuffer.trim();
+        scanBuffer = '';
+        clearTimeout(bufferTimer);
+        if (data) processScan(data);
+    } else if (e.key.length === 1) {
+        scanBuffer += e.key;
+        clearTimeout(bufferTimer);
+        bufferTimer = setTimeout(() => {
+            if (scanBuffer) {
+                processScan(scanBuffer.trim());
+                scanBuffer = '';
+            }
+        }, 150);
+    }
+});
+
+// Also handle paste (some scanners)
+scannerInput.addEventListener('paste', e => {
+    e.preventDefault();
+    const text = e.clipboardData.getData('text/plain').trim();
+    if (text) processScan(text);
+});
+
+// ══════════════════════════════════════════
+//  SCAN PROCESSING
+// ══════════════════════════════════════════
+async function processScan(raw) {
+    if (state.isProcessing) return;
+    state.isProcessing = true;
+
+    let pipeId = null;
+    const trimmed = raw.trim();
+
+    // Try JSON parse
+    try {
+        const parsed = JSON.parse(trimmed);
+        if (parsed && parsed.id) pipeId = parseInt(parsed.id);
+    } catch(e) {}
+
+    // Plain number
+    if (pipeId === null) {
+        const num = parseInt(trimmed, 10);
+        if (!isNaN(num)) pipeId = num;
+    }
+
+    // Regex fallback
+    if (pipeId === null) {
+        const m = trimmed.match(/"id":\s*(\d+)/);
+        if (m) pipeId = parseInt(m[1]);
+    }
+
+    if (pipeId === null) {
+        showResult('err', '❌', 'Invalid QR / Barcode');
+        vibrate([100, 50, 100]);
+        state.isProcessing = false;
+        return;
+    }
+
+    // Duplicate check
+    if (state.scannedIds.has(pipeId)) {
+        showResult('warn', '⚠️', `ID ${pipeId} already scanned`);
+        addRecentItem(null, pipeId, true);
+        vibrate([200, 100, 200]);
+        state.isProcessing = false;
+        return;
+    }
+
+    // Fetch from server
+    try {
+        const res = await fetch(`/api/labels/${pipeId}`);
+        if (!res.ok) throw new Error(`Not found (ID: ${pipeId})`);
+        const item = await res.json();
+
+        if (item.dispatched_at) {
+            showResult('warn', '⚠️', `Already dispatched`);
+            vibrate([200, 100, 200]);
+            state.isProcessing = false;
+            return;
+        }
+
+        // ✅ SUCCESS
+        state.scannedItems.push(item);
+        state.scannedIds.add(item.id);
+        state.totalWeight += parseFloat(item.weight_g || 0);
+
+        showResult('ok', null, null, item);
+        addRecentItem(item, null, false);
+        updateCounters();
+        triggerFlash();
+        vibrate([50]);
+
+    } catch(err) {
+        showResult('err', '❌', err.message);
+        vibrate([100, 50, 100]);
+    }
+
+    state.isProcessing = false;
+}
+
+// ══════════════════════════════════════════
+//  UI UPDATES
+// ══════════════════════════════════════════
+function showResult(stateClass, icon, message, pipe) {
+    const card = document.getElementById('result-card');
+    const statusText = document.getElementById('result-status-text');
+    const idleContent = document.getElementById('idle-content');
+    const pipeContent = document.getElementById('pipe-content');
+    const msgContent = document.getElementById('msg-content');
+
+    // Reset state classes
+    card.className = `result-card state-${stateClass}`;
+
+    if (stateClass === 'ok' && pipe) {
+        statusText.textContent = '✓ Scanned — Added to Shipment';
+        idleContent.style.display = 'none';
+        msgContent.style.display = 'none';
+        pipeContent.style.display = 'block';
+
+        document.getElementById('pipe-name').textContent = pipe.pipe_name || '—';
+        document.getElementById('pipe-meta').textContent = `${pipe.color || ''} · ${pipe.batch || ''}`;
+        document.getElementById('pipe-size').textContent = pipe.size || '—';
+        document.getElementById('pipe-weight').textContent = `${parseFloat(pipe.weight_g || 0).toFixed(2)} kg`;
+        document.getElementById('pipe-id').textContent = `#${pipe.id}`;
+
+    } else if (stateClass === 'warn' || stateClass === 'err') {
+        statusText.textContent = stateClass === 'warn' ? 'Duplicate / Already Out' : 'Scan Error';
+        idleContent.style.display = 'none';
+        pipeContent.style.display = 'none';
+        msgContent.style.display = 'block';
+        document.getElementById('msg-icon').textContent = icon;
+        document.getElementById('msg-text-p').textContent = message;
+
+        // Shake card
+        card.classList.add('shake');
+        setTimeout(() => card.classList.remove('shake'), 400);
+
+        // Auto reset
+        setTimeout(() => {
+            if (card.className.includes(`state-${stateClass}`)) {
+                resetToIdle();
+            }
+        }, 3000);
+
+    } else {
+        resetToIdle();
+    }
+}
+
+function resetToIdle() {
+    const card = document.getElementById('result-card');
+    card.className = 'result-card state-idle';
+    document.getElementById('result-status-text').textContent = 'Waiting for scan…';
+    document.getElementById('idle-content').style.display = 'block';
+    document.getElementById('pipe-content').style.display = 'none';
+    document.getElementById('msg-content').style.display = 'none';
+}
+
+function updateCounters() {
+    document.getElementById('count-scanned').textContent = state.scannedItems.length;
+    document.getElementById('count-weight').textContent = state.totalWeight.toFixed(2);
+}
+
+function addRecentItem(pipe, dupId, isDuplicate) {
+    const list = document.getElementById('recent-list');
+    const li = document.createElement('li');
+    li.className = `recent-item${isDuplicate ? ' dup' : ''}`;
+
+    if (isDuplicate) {
+        li.innerHTML = `
+            <div>
+                <div class="ri-name">ID #${dupId}</div>
+                <div class="ri-meta">Already in list</div>
+            </div>
+            <span class="ri-badge">DUPE</span>
+        `;
+    } else {
+        li.innerHTML = `
+            <div>
+                <div class="ri-name">${pipe.pipe_name}</div>
+                <div class="ri-meta">${pipe.size} · ${pipe.color} · ${parseFloat(pipe.weight_g).toFixed(2)} kg</div>
+            </div>
+            <span class="ri-badge">OK</span>
+        `;
+    }
+
+    list.insertBefore(li, list.firstChild);
+
+    // Keep max 20 items visible
+    while (list.children.length > 20) list.removeChild(list.lastChild);
+}
+
+function triggerFlash() {
+    const overlay = document.getElementById('flash-overlay');
+    overlay.classList.remove('flash-anim');
+    void overlay.offsetWidth; // reflow
+    overlay.classList.add('flash-anim');
+}
+
+// ══════════════════════════════════════════
+//  VIBRATION (native haptic feedback)
+// ══════════════════════════════════════════
+function vibrate(pattern) {
+    if (navigator.vibrate) navigator.vibrate(pattern);
+}
+
+// ══════════════════════════════════════════
+//  UNDO LAST SCAN
+// ══════════════════════════════════════════
+document.getElementById('btn-undo-last').addEventListener('click', () => {
+    if (state.scannedItems.length === 0) return;
+    const last = state.scannedItems.pop();
+    state.scannedIds.delete(last.id);
+    state.totalWeight = Math.max(0, state.totalWeight - parseFloat(last.weight_g || 0));
+    updateCounters();
+
+    // Remove first item from recent list
+    const list = document.getElementById('recent-list');
+    if (list.firstChild) list.removeChild(list.firstChild);
+
+    resetToIdle();
+    focusScanner();
+});
+
+// ══════════════════════════════════════════
+//  FINISH / CONFIRM SCREEN
+// ══════════════════════════════════════════
+document.getElementById('btn-end-dispatch').addEventListener('click', () => {
+    if (state.scannedItems.length === 0) {
+        alert('No pipes scanned yet.');
+        return;
+    }
+    // Populate confirm screen
+    document.getElementById('cf-challan').textContent = state.challan;
+    document.getElementById('cf-vehicle').textContent = state.vehicle || 'N/A';
+    document.getElementById('cf-driver').textContent = state.driver || 'N/A';
+    document.getElementById('cf-pipes').textContent = state.scannedItems.length;
+    document.getElementById('cf-weight').textContent = state.totalWeight.toFixed(2) + ' kg';
+    showScreen('screen-confirm');
+});
+
+document.getElementById('btn-back-scan').addEventListener('click', () => {
+    showScreen('screen-scan');
+    focusScanner();
+});
+
+// ══════════════════════════════════════════
+//  DISPATCH SUBMISSION
+// ══════════════════════════════════════════
+document.getElementById('btn-confirm-dispatch').addEventListener('click', async () => {
+    const btn = document.getElementById('btn-confirm-dispatch');
+    btn.disabled = true;
+    btn.textContent = 'Sending…';
+
+    const payload = {
+        meta: {
+            challan_number: state.challan,
+            vehicle: state.vehicle,
+            driver_mobile: state.driver,
+            customer: '',
+            address: '',
+            customer_mobile: ''
+        },
+        items: state.scannedItems
+    };
+
+    try {
+        const res = await fetch('/api/shipments/create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+
+        if (!res.ok || !data.success) throw new Error(data.message || 'Server error');
+
+        // Show success
+        document.getElementById('s-challan').textContent = state.challan;
+        document.getElementById('s-pipes').textContent = state.scannedItems.length + ' pipes';
+        document.getElementById('s-weight').textContent = state.totalWeight.toFixed(2) + ' kg';
+        document.getElementById('s-time').textContent = new Date().toLocaleTimeString('en-IN', {hour:'2-digit',minute:'2-digit'});
+        document.getElementById('success-sub').textContent = data.message || 'Shipment created';
+
+        vibrate([50, 50, 200]);
+        showScreen('screen-success');
+
+    } catch(err) {
+        alert('❌ ' + err.message);
+        btn.disabled = false;
+        btn.textContent = '✓ Confirm & Dispatch';
+    }
+});
+
+// ══════════════════════════════════════════
+//  NEW DISPATCH (RESET)
+// ══════════════════════════════════════════
+document.getElementById('btn-new-dispatch').addEventListener('click', () => {
+    // Reset state
+    state.challan = '';
+    state.vehicle = '';
+    state.driver = '';
+    state.scannedItems = [];
+    state.scannedIds.clear();
+    state.totalWeight = 0;
+    state.isProcessing = false;
+
+    // Reset UI
+    document.getElementById('setup-challan').value = '';
+    document.getElementById('setup-vehicle').value = '';
+    document.getElementById('setup-driver').value = '';
+    document.getElementById('recent-list').innerHTML = '';
+    updateCounters();
+    resetToIdle();
+
+    showScreen('screen-setup');
+    setTimeout(() => document.getElementById('setup-challan').focus(), 100);
+});
+
+// ══════════════════════════════════════════
+//  KEEP SCANNER FOCUSED
+// ══════════════════════════════════════════
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && document.getElementById('screen-scan').classList.contains('active')) {
+        setTimeout(focusScanner, 300);
+    }
+});
+
+// Auto-focus setup on load
+setTimeout(() => document.getElementById('setup-challan').focus(), 200);
+</script>
+</body>
+</html>
