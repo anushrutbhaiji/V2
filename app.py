@@ -181,10 +181,6 @@ def dispatch_hub():
 @app.route('/mobile')
 def mobile(): return render_template('dispatch_mobile.html')
 
-@app.route('/verify')
-def verify_stock():
-    return render_template('verify.html')
-
 @app.route('/admin')
 def admin(): return render_template('admin.html')
 
@@ -502,7 +498,79 @@ def reject_inventory():
         return jsonify({'success': True, 'message': f'Marked {len(ids)} records as rejected'})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500
-        
+
+# ── Verify Page Route ────────────────────────────────────────────────────────
+@app.route('/verify')   
+def verify_stock():
+    """
+    Renders the verification page.
+    Accepts URL params: pipe_name, size, color, pressure
+    Example: /verify?pipe_name=PVC+Pipe&size=110mm&color=Orange&pressure=PN6
+    """
+    return render_template('verify.html')
+
+
+# ── Verify: Get Pipes for Verification (no admin auth — LAN IP check) ────────
+@app.route('/api/verify/pipes', methods=['GET'])
+def get_verify_pipes():
+    """
+    Returns all in-stock pipes matching the filter params.
+    Called by verify.html on page load.
+    No admin auth needed — verify page is LAN-only.
+    """
+    real_ip = get_real_ip()
+    if not is_allowed_internal_ip(real_ip):
+        return jsonify({"error": "Forbidden"}), 403
+
+    data = services.fetch_inventory_data(request.args)
+    return jsonify(data)
+
+
+# ── Verify: Save Verification Voucher ───────────────────────────────────────
+@app.route('/api/verify/voucher', methods=['POST'])
+def create_verify_voucher():
+    """
+    Saves a verification session to the DB as a voucher.
+    Payload:
+      filter       : dict of filter params used
+      expected_ids : list of IDs that were expected
+      scanned_ids  : list of IDs physically scanned
+      missing_ids  : list of IDs not found physically
+      extra_ids    : list of IDs scanned but not in filter
+      notes        : string (optional)
+    """
+    data = request.json
+    if not data:
+        return jsonify({"success": False, "message": "No data received"}), 400
+
+    try:
+        voucher_id = services.create_verification_voucher(data)
+        return jsonify({"success": True, "voucher_id": voucher_id})
+    except Exception as e:
+        print(f"❌ Error saving verify voucher: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+# ── Verify Voucher History Page ──────────────────────────────────────────────
+@app.route('/admin/verify-vouchers')
+def verify_voucher_history():
+    """Admin page listing all past verification vouchers."""
+    auth = request.authorization
+    if not auth or auth.password != ADMIN_PASS:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    vouchers = services.get_verification_vouchers()
+    return render_template('verify_history.html', vouchers=vouchers)
+
+
+# ── Verify Voucher Detail (API) ──────────────────────────────────────────────
+@app.route('/api/verify/vouchers', methods=['GET'])
+def get_verify_vouchers():
+    auth = request.authorization
+    if not auth or auth.password != ADMIN_PASS:
+        return jsonify({"error": "Unauthorized"}), 401
+    return jsonify(services.get_verification_vouchers())
+
 if __name__ == '__main__':
     if not os.path.exists('templates'): os.makedirs('templates')
     print("System Running on http://localhost:5000")

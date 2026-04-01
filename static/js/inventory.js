@@ -204,10 +204,11 @@ function renderSummaryTable(data, mode) {
         // ✨ NEW: Adds the Verify button next to the IDs button
         let verifyLink = `/verify?brand=${encodeURIComponent(g.brand)}&size=${encodeURIComponent(g.size)}&color=${encodeURIComponent(g.color)}&pressure=${encodeURIComponent(safePressure)}`;
         
-        let actionBtn = `<div style="display:flex; gap:5px; justify-content:center;">
-            <button class="btn" style="padding:5px 10px; font-size:0.8rem; background:#cbd5e1; color:#333;" onclick="drillDown('${g.brand}', '${g.size}', '${g.color}', '${safePressure}', '${safeWeight}')">Ids</button>
-            <a href="${verifyLink}" target="_blank" class="btn btn-success" style="padding:5px 10px; font-size:0.8rem; text-decoration:none;">✅ Verify</a>
-        </div>`;
+        // Action Buttons
+         let actionBtn = `<div style="display:flex; gap:5px; justify-content:center;">
+             <button class="btn" style="padding:5px 10px; font-size:0.8rem; background:#cbd5e1; color:#333;" onclick="drillDown('${g.brand}', '${g.size}', '${g.color}', '${safePressure}', '${safeWeight}')">Ids</button>
+             <button class="btn" style="padding:5px 10px; font-size:0.8rem; background:rgba(59,130,246,.15); color:#2563eb; border:1px solid rgba(59,130,246,.4);" onclick="openVerify('${g.brand}', '${g.size}', '${g.color}', '${safePressure}', '${safeWeight}')">🔍 Verify</button>
+         </div>`;
 
         let row = '';
         if (mode === 'size_centric') {
@@ -503,4 +504,26 @@ function downloadInventoryCSV() {
         grouped: (currentReportType === 'production') ? 'true' : 'false'
     });
     downloadFileWithAuth(`/api/export?${params}`, 'report.csv');
+}
+
+// --- NEW HELPER: Jump to Verification Hub ---
+function openVerify(brand, size, color, pressure, weight) {
+    const params = new URLSearchParams();
+    
+    if (brand) {
+        params.set('name', brand);      // Tells the backend database to filter by brand
+        params.set('pipe_name', brand); // Tells the UI to print the brand in the title
+    }
+    if (size) params.set('size', size);
+    if (color) params.set('color', color);
+    if (pressure && pressure !== '-') params.set('pressure', pressure);
+    
+    // Parse and clean weight - remove non-numeric chars except decimal point
+    if (weight) {
+        let cleanWeight = String(weight).replace(/[^0-9.]/g, '');
+        if (cleanWeight) params.set('weight', cleanWeight);
+    }
+    
+    // Open the new tab with the correctly formatted filters!
+    window.open('/verify?' + params.toString(), '_blank');
 }
